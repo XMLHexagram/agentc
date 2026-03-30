@@ -17,12 +17,19 @@ sudo chown -R claude:claude /home/claude 2>/dev/null || true
 SWIFTLY_HOME="${SWIFTLY_HOME_DIR:-$HOME/.local/share/swiftly}"
 
 if [ ! -x "$SWIFTLY_HOME/bin/swiftly" ]; then
-    echo "==> Installing swiftly..."
     ARCH=$(uname -m)
-    curl -fsSL "https://download.swift.org/swiftly/linux/swiftly-${ARCH}.tar.gz" \
-        -o /tmp/swiftly.tar.gz
+    SWIFTLY_URL="https://download.swift.org/swiftly/linux/swiftly-${ARCH}.tar.gz"
+
+    echo "==> System info: $(uname -a)"
+    echo "==> Downloading swiftly from: ${SWIFTLY_URL}"
+
+    curl -fsSL "${SWIFTLY_URL}" -o /tmp/swiftly.tar.gz
     tar -zxf /tmp/swiftly.tar.gz -C /tmp
-    /tmp/swiftly init --quiet-shell-followup --assume-yes
+
+    # debian:latest is Debian 13 (Trixie); swiftly's platform detection only
+    # knows debian12. Override to debian12, which is ABI-compatible.
+    echo "==> Installing swiftly (platform override: debian12)..."
+    /tmp/swiftly init --quiet-shell-followup --assume-yes --platform debian12
     rm -f /tmp/swiftly /tmp/swiftly.tar.gz
 fi
 
