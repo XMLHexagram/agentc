@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ── Resolve profile directory ──────────────────────────────────────────────────
+if [[ -z "${CLAUDEC_PROFILE_DIR:-}" ]]; then
+    if [[ -z "${CLAUDEC_PROFILE:-}" ]]; then
+        echo "claudec: set CLAUDEC_PROFILE or CLAUDEC_PROFILE_DIR" >&2
+        exit 1
+    fi
+    CLAUDEC_PROFILE_DIR="${HOME}/.claudec/profiles/${CLAUDEC_PROFILE}"
+fi
+
+# ── Resolve remaining config ───────────────────────────────────────────────────
+CLAUDEC_IMAGE="${CLAUDEC_IMAGE:-ghcr.io/laosb/claudec:latest}"
+CLAUDEC_WORKSPACE="${CLAUDEC_WORKSPACE:-${PWD}}"
+
+# ── Run ───────────────────────────────────────────────────────────────────────
+exec container run --rm -it \
+    -v "${CLAUDEC_PROFILE_DIR}/home:/home/claude" \
+    -v "${CLAUDEC_WORKSPACE}:/workspace" \
+    "${CLAUDEC_IMAGE}" \
+    "$@"
