@@ -3,12 +3,11 @@ set -euo pipefail
 
 # ── Resolve profile directory ──────────────────────────────────────────────────
 if [[ -z "${CLAUDEC_PROFILE_DIR:-}" ]]; then
-    if [[ -z "${CLAUDEC_PROFILE:-}" ]]; then
-        echo "claudec: set CLAUDEC_PROFILE or CLAUDEC_PROFILE_DIR" >&2
-        exit 1
-    fi
+    CLAUDEC_PROFILE="${CLAUDEC_PROFILE:-default}"
     CLAUDEC_PROFILE_DIR="${HOME}/.claudec/profiles/${CLAUDEC_PROFILE}"
 fi
+
+mkdir -p "${CLAUDEC_PROFILE_DIR}/home"
 
 # ── Resolve remaining config ───────────────────────────────────────────────────
 CLAUDEC_IMAGE="${CLAUDEC_IMAGE:-ghcr.io/laosb/claudec:latest}"
