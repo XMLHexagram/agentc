@@ -12,10 +12,14 @@ mkdir -p "${CLAUDEC_PROFILE_DIR}/home"
 # ── Resolve remaining config ───────────────────────────────────────────────────
 CLAUDEC_IMAGE="${CLAUDEC_IMAGE:-ghcr.io/laosb/claudec:latest}"
 CLAUDEC_WORKSPACE="${CLAUDEC_WORKSPACE:-${PWD}}"
+CLAUDEC_WORKSPACE_CANONICAL="$(cd "${CLAUDEC_WORKSPACE}" && pwd -P)"
+CLAUDEC_WORKSPACE_HASH="$(printf '%s' "${CLAUDEC_WORKSPACE_CANONICAL}" | sha256sum | cut -d' ' -f1)"
+CLAUDEC_WORKSPACE_CONTAINER="/workspace/${CLAUDEC_WORKSPACE_HASH}"
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 exec container run --rm -it \
     -v "${CLAUDEC_PROFILE_DIR}/home:/home/claude" \
-    -v "${CLAUDEC_WORKSPACE}:/workspace" \
+    -v "${CLAUDEC_WORKSPACE}:${CLAUDEC_WORKSPACE_CONTAINER}" \
+    -w "${CLAUDEC_WORKSPACE_CONTAINER}" \
     "${CLAUDEC_IMAGE}" \
     "$@"
