@@ -105,6 +105,11 @@ stub_profile_home() {
     # Non-empty toolchains dir — bootstrap skips `swiftly install latest` when non-empty
     touch "${home_dir}/.local/share/swiftly/toolchains/.placeholder"
 
+    # Stub bun binary — bootstrap checks `command -v bun`
+    mkdir -p "${home_dir}/.bun/bin"
+    printf '#!/bin/sh\nexit 0\n' > "${home_dir}/.bun/bin/bun"
+    chmod +x "${home_dir}/.bun/bin/bun"
+
     # Stub claude binary — bootstrap checks `command -v claude`
     printf '#!/bin/sh\nexit 0\n' > "${home_dir}/.claude/bin/claude"
     chmod +x "${home_dir}/.claude/bin/claude"
@@ -301,6 +306,25 @@ SCRIPT
     }
 }
 test_case "CLAUDEC_BOOTSTRAP_SCRIPT overrides bootstrap in container" test_bootstrap_script
+
+# Test: CLAUDEC_CHECK_UPDATE=0 — suppresses update check output
+test_check_update_disabled() {
+    run_claudec CLAUDEC_PROFILE="${SHARED_PROFILE}" CLAUDEC_CHECK_UPDATE=0 sh echo ok
+    [[ $_rc -eq 0 ]] || { debug "Expected exit 0, got $_rc"; return 1; }
+    [[ "$_out" != *"update available"* ]] || {
+        debug "Expected no update message when CLAUDEC_CHECK_UPDATE=0"
+        return 1
+    }
+}
+test_case "CLAUDEC_CHECK_UPDATE=0 suppresses update check" test_check_update_disabled
+
+# Test: bootstrap installs bun stub — bun is on PATH inside the container
+test_bun_on_path() {
+    run_claudec CLAUDEC_PROFILE="${SHARED_PROFILE}" sh command -v bun
+    [[ $_rc -eq 0 ]] || { debug "Expected exit 0, got $_rc"; return 1; }
+    [[ "$_out" == *"bun"* ]] || { debug "Expected 'bun' in output, got: $_out"; return 1; }
+}
+test_case "Bun is available on PATH inside the container" test_bun_on_path
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""

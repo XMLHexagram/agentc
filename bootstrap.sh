@@ -43,7 +43,14 @@ if command -v swiftly &>/dev/null && [ -z "$(ls -A "$SWIFTLY_HOME/toolchains/" 2
 fi
 
 # Extend PATH with all user-local bin directories
-export PATH="$HOME/.claude/bin:$HOME/.local/bin:$SWIFTLY_HOME/bin:$PATH"
+export PATH="$HOME/.bun/bin:$HOME/.claude/bin:$HOME/.local/bin:$SWIFTLY_HOME/bin:$PATH"
+
+# ── Bun ───────────────────────────────────────────────────────────────────────
+if ! command -v bun &>/dev/null; then
+    echo "==> Installing Bun..."
+    curl -fsSL https://bun.sh/install | bash
+    export PATH="$HOME/.bun/bin:$PATH"
+fi
 
 # ── Claude Code ────────────────────────────────────────────────────────────────
 if ! command -v claude &>/dev/null; then
