@@ -69,6 +69,7 @@ Each workspace is mounted at `/workspace/<sha256 of canonical path>` inside the 
 | `CLAUDEC_WORKSPACE` | `$PWD` | Host directory to mount as the workspace. |
 | `CLAUDEC_IMAGE_AUTO_UPDATE` | `1` | Set to `0` to disable automatic image update checks before each run. |
 | `CLAUDEC_IMAGE_AUTO_UPDATE_REMOVE_OLD` | `1` | Set to `0` to keep the old image after a successful update. |
+| `CLAUDEC_CONTAINER_FLAGS` | *(empty)* | Extra flags passed directly to `container run`. Useful for mounting additional volumes, exposing ports, etc. |
 
 Before each run, `claudec` will pull the latest version of the image and print a notice only if a newer image was actually loaded. The old image is removed automatically unless `CLAUDEC_IMAGE_AUTO_UPDATE_REMOVE_OLD=0` is set. Set `CLAUDEC_IMAGE_AUTO_UPDATE=0` to skip this entirely (e.g. for offline use or when using a custom local image).
 

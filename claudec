@@ -34,9 +34,11 @@ fi
 # ── Run ───────────────────────────────────────────────────────────────────────
 CONTAINER_ARGS=(
     --rm -it
+    --memory 1.5g
     -v "${CLAUDEC_PROFILE_DIR}/home:/home/claude"
     -v "${CLAUDEC_WORKSPACE}:${CLAUDEC_WORKSPACE_CONTAINER}"
     -w "${CLAUDEC_WORKSPACE_CONTAINER}"
+    ${CLAUDEC_CONTAINER_FLAGS:-}
 )
 
 exec container run "${CONTAINER_ARGS[@]}" "${CLAUDEC_IMAGE}" "${@+"$@"}"
