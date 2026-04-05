@@ -213,7 +213,9 @@
           URLQueryItem(name: "tag", value: "v1.0"),
         ])
       #expect(url.contains("/v1.44/images/create?"))
-      #expect(url.contains("fromImage=ghcr.io/user/repo") || url.contains("fromImage=ghcr.io%2Fuser%2Frepo"))
+      #expect(
+        url.contains("fromImage=ghcr.io/user/repo")
+          || url.contains("fromImage=ghcr.io%2Fuser%2Frepo"))
       #expect(url.contains("tag=v1.0"))
     }
 

@@ -1,3 +1,6 @@
+import Foundation
+import Synchronization
+
 #if canImport(Darwin)
   import Darwin
 #elseif canImport(Glibc)
@@ -5,8 +8,6 @@
 #elseif canImport(Musl)
   import Musl
 #endif
-import Foundation
-import Synchronization
 
 // On Linux (Glibc/Musl), SOCK_STREAM is an enum (__socket_type), not Int32.
 #if canImport(Darwin)

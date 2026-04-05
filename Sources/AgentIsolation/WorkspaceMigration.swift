@@ -20,7 +20,8 @@ public enum WorkspaceMigration {
     legacyPath: String,
     newPath: String
   ) throws {
-    let projectsDir = profileHomeDir
+    let projectsDir =
+      profileHomeDir
       .appendingPathComponent(".claude")
       .appendingPathComponent("projects")
 
