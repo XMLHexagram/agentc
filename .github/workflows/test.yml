@@ -34,9 +34,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Swift
-        uses: SwiftyLab/setup-swift@latest
-        with:
-          swift-version: "6.3"
+        uses: ./.github/actions/setup-swift
 
       - name: Cache SPM build artifacts
         uses: actions/cache@v4
@@ -96,9 +94,9 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Swift
-        uses: SwiftyLab/setup-swift@latest
+        uses: ./.github/actions/setup-swift
         with:
-          swift-version: "6.3"
+          static-sdk: "true"
 
       - name: Cache SPM build artifacts
         uses: actions/cache@v4
@@ -107,17 +105,6 @@ jobs:
           key: spm-integration-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
           restore-keys: |
             spm-integration-${{ matrix.os }}-${{ matrix.arch }}-
-
-      - name: Cache Static Linux SDK
-        id: cache-static-sdk
-        uses: actions/cache@v4
-        with:
-          path: ~/.swiftpm/swift-sdks
-          key: static-sdk-${{ matrix.swift-sdk }}-6.3
-
-      - name: Install Static Linux SDK
-        if: steps.cache-static-sdk.outputs.cache-hit != 'true'
-        run: swift sdk install https://download.swift.org/swift-6.3-release/static-sdk/swift-6.3-RELEASE/swift-6.3-RELEASE_static-linux-0.1.0.artifactbundle.tar.gz --checksum d2078b69bdeb5c31202c10e9d8a11d6f66f82938b51a4b75f032ccb35c4c286c
 
       - name: Download base image
         uses: actions/download-artifact@v4
@@ -181,20 +168,9 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Swift
-        uses: SwiftyLab/setup-swift@latest
+        uses: ./.github/actions/setup-swift
         with:
-          swift-version: "6.3"
-
-      - name: Cache Static Linux SDK
-        id: cache-static-sdk
-        uses: actions/cache@v4
-        with:
-          path: ~/.swiftpm/swift-sdks
-          key: static-sdk-${{ matrix.swift-sdk }}-6.3
-
-      - name: Install Static Linux SDK
-        if: steps.cache-static-sdk.outputs.cache-hit != 'true'
-        run: swift sdk install https://download.swift.org/swift-6.3-release/static-sdk/swift-6.3-RELEASE/swift-6.3-RELEASE_static-linux-0.1.0.artifactbundle.tar.gz --checksum d2078b69bdeb5c31202c10e9d8a11d6f66f82938b51a4b75f032ccb35c4c286c
+          static-sdk: "true"
 
       - name: Cache SPM build artifacts
         uses: actions/cache@v4
