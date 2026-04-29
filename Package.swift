@@ -10,6 +10,7 @@ let package = Package(
       name: "AgentIsolationAppleContainerRuntime", targets: ["AgentIsolationAppleContainerRuntime"]),
     .library(
       name: "AgentIsolationDockerRuntime", targets: ["AgentIsolationDockerRuntime"]),
+    .library(name: "AgentIsolationSetup", targets: ["AgentIsolationSetup"]),
     .executable(name: "agentc", targets: ["agentc"]),
     .executable(name: "agentc-bootstrap", targets: ["agentc-bootstrap"]),
   ],
@@ -40,6 +41,9 @@ let package = Package(
       dependencies: [
         .product(name: "Crypto", package: "swift-crypto")
       ]
+    ),
+    .target(
+      name: "AgentIsolationSetup"
     ),
     .target(
       name: "AgentIsolationAppleContainerRuntime",
