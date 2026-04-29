@@ -172,7 +172,11 @@
           containerConfig.process.terminal = isTerminal
           containerConfig.process.stdin = ContainerizationReaderStream(stdin)
           containerConfig.process.stdout = ContainerizationWriter(stdout)
-          containerConfig.process.stderr = ContainerizationWriter(stderr)
+          // In terminal (PTY) mode, stderr is merged into the PTY device —
+          // setting a separate stderr stream would conflict with terminal=true.
+          if !isTerminal {
+            containerConfig.process.stderr = ContainerizationWriter(stderr)
+          }
         }
       }
 
