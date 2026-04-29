@@ -71,6 +71,10 @@ public struct IsolationConfig: Sendable {
   /// ``AgentSession/write(_:)`` / ``AgentSession/resize(cols:rows:)`` throw.
   public var customPTY: Bool
 
+  /// Additional environment variables to pass to the container.
+  /// These are merged with the internal environment (AGENTC_CONFIGURATIONS, etc.).
+  public var additionalEnvironment: [String: String]
+
   public init(
     image: String,
     profileHomeDir: URL,
@@ -85,7 +89,8 @@ public struct IsolationConfig: Sendable {
     memoryLimitMiB: Int = 1536,
     additionalHostMounts: [URL] = [],
     verbose: Bool = false,
-    customPTY: Bool = false
+    customPTY: Bool = false,
+    additionalEnvironment: [String: String] = [:]
   ) {
     self.image = image
     self.profileHomeDir = profileHomeDir
@@ -101,5 +106,6 @@ public struct IsolationConfig: Sendable {
     self.additionalHostMounts = additionalHostMounts
     self.verbose = verbose
     self.customPTY = customPTY
+    self.additionalEnvironment = additionalEnvironment
   }
 }
