@@ -172,7 +172,11 @@
           containerConfig.process.terminal = isTerminal
           containerConfig.process.stdin = ContainerizationReaderStream(stdin)
           containerConfig.process.stdout = ContainerizationWriter(stdout)
-          containerConfig.process.stderr = ContainerizationWriter(stderr)
+          // When terminal=true the PTY's master fd merges stdout and stderr —
+          // Containerization rejects a separate stderr writer in that mode.
+          if !isTerminal {
+            containerConfig.process.stderr = ContainerizationWriter(stderr)
+          }
         }
       }
 
