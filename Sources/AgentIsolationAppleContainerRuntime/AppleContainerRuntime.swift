@@ -137,12 +137,19 @@
     /// Stage-instrumented runContainer. Emits ``AgentStartStage`` events at the
     /// boundaries between manager.create / container.create / container.start so
     /// the host can render real progress instead of time-based heuristics.
+    ///
+    /// Uses a **rootfs template cache** keyed by image digest. The first container
+    /// for a given image goes through the full unpack (~30-40s for a typical
+    /// 280 MB / 14k file image) and saves the resulting `rootfs.ext4` as a template
+    /// at `<storage>/rootfs-templates/<digest>.ext4`. Subsequent containers using
+    /// the same image skip unpacking entirely — APFS `clonefile()` produces a
+    /// copy-on-write rootfs in milliseconds.
     public func runContainer(
       imageRef: String,
       configuration: ContainerConfiguration,
       progress: AgentStartProgressHandler?
     ) async throws -> AppleContainerContainer {
-      guard var manager else {
+      guard var manager, let imageStore else {
         throw AppleContainerRuntimeError.notPrepared
       }
 
@@ -157,55 +164,32 @@
       }
 
       let containerID = UUID().uuidString.lowercased()
-
       let resolvedRef = Self.normalizedDockerHubRef(imageRef)
 
       await progress?(.creatingContainer)
 
-      // Translate Containerization's per-event ProgressHandler stream into our
-      // AgentStartStage.unpackingRootfs aggregate (cumulative bytes + files).
-      let unpackTracker = UnpackProgressTracker(forward: progress)
-      let unpackProgress: ProgressHandler = { events in
-        await unpackTracker.handle(events)
-      }
-
-      let container = try await manager.create(
-        containerID,
-        reference: resolvedRef,
-        rootfsSizeInBytes: UInt64(8).gib(),
-        progress: unpackProgress
-      ) { containerConfig in
+      // Container configuration is identical across fast/slow paths — captured once
+      // here and reused as the trailing closure to whichever manager.create overload
+      // we end up calling.
+      let configureContainer: (inout LinuxContainer.Configuration) throws -> Void = { containerConfig in
         containerConfig.cpus = configuration.cpuCount
         containerConfig.memoryInBytes = UInt64(configuration.memoryLimitMiB).mib()
-
         containerConfig.hosts = .default
         containerConfig.useInit = true
 
-        // Entrypoint
         if !configuration.entrypoint.isEmpty {
           containerConfig.process.arguments = configuration.entrypoint
         }
-
-        // Working directory
         if let workDir = configuration.workingDirectory {
           containerConfig.process.workingDirectory = workDir
         }
-
-        // Environment
         for (key, value) in configuration.environment {
           containerConfig.process.environmentVariables.append("\(key)=\(value)")
         }
-
-        // Mounts
         for mount in configuration.mounts {
           containerConfig.mounts.append(
-            .share(
-              source: mount.hostPath,
-              destination: mount.containerPath
-            ))
+            .share(source: mount.hostPath, destination: mount.containerPath))
         }
-
-        // I/O
         switch configuration.io {
         case .currentTerminal:
           if let t = terminal {
@@ -225,6 +209,54 @@
             containerConfig.process.stderr = ContainerizationWriter(stderr)
           }
         }
+      }
+
+      // Resolve image once so we can derive the digest for template caching.
+      let image = try await imageStore.get(reference: resolvedRef)
+      let templateURL = rootfsTemplateURL(storage: storagePath, digest: image.digest)
+      let containerDir = imageStore.path
+        .appendingPathComponent("containers")
+        .appendingPathComponent(containerID)
+      let rootfsURL = containerDir.appendingPathComponent("rootfs.ext4")
+
+      let container: LinuxContainer
+      if FileManager.default.fileExists(atPath: templateURL.path),
+         (try? cloneRootfs(template: templateURL, container: rootfsURL)) != nil
+      {
+        // Fast path: clone the cached template (APFS CoW, ~ms) and use the
+        // pre-built-rootfs overload of manager.create — no unpacking.
+        let mount = Mount.block(
+          format: "ext4",
+          source: rootfsURL.absolutePath(),
+          destination: "/",
+          options: []
+        )
+        container = try await manager.create(
+          containerID,
+          image: image,
+          rootfs: mount,
+          configuration: configureContainer
+        )
+      } else {
+        // Slow path: full unpack. After success, save the rootfs as a template
+        // for next time. Translate Containerization's progress stream into our
+        // AgentStartStage.unpackingRootfs aggregate (cumulative bytes + files).
+        let unpackTracker = UnpackProgressTracker(forward: progress)
+        let unpackProgress: ProgressHandler = { events in
+          await unpackTracker.handle(events)
+        }
+
+        container = try await manager.create(
+          containerID,
+          reference: resolvedRef,
+          rootfsSizeInBytes: UInt64(8).gib(),
+          progress: unpackProgress,
+          configuration: configureContainer
+        )
+
+        // Best-effort template save — failure here is non-fatal (next start will
+        // simply unpack again).
+        saveRootfsTemplate(from: rootfsURL, to: templateURL)
       }
 
       await progress?(.bootingVM)
@@ -415,6 +447,54 @@
         return "Container runtime has not been prepared. Call prepare() first."
       }
     }
+  }
+
+  // MARK: - Rootfs template cache
+
+  /// Path of the cached rootfs template for an image digest. Each unique image
+  /// content (by content-addressed digest) gets its own template; tags pointing to
+  /// new content automatically miss the cache and trigger a fresh unpack-and-save.
+  private func rootfsTemplateURL(storage: URL, digest: String) -> URL {
+    // Replace `:` (sha256:abc...) for filesystem safety on legacy filesystems.
+    let safe = digest.replacingOccurrences(of: ":", with: "-")
+    return storage
+      .appendingPathComponent("rootfs-templates")
+      .appendingPathComponent("\(safe).ext4")
+  }
+
+  /// Clone a template ext4 file into the container's rootfs path.
+  ///
+  /// Uses POSIX `clonefile()` which is O(1) on APFS via copy-on-write — the file
+  /// appears as a separate full-sized rootfs, but only diverging blocks consume
+  /// extra disk. On non-APFS filesystems clonefile falls through to a regular copy.
+  private func cloneRootfs(template: URL, container destination: URL) throws {
+    try FileManager.default.createDirectory(
+      at: destination.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    // clonefile rejects an existing destination; remove if present.
+    try? FileManager.default.removeItem(at: destination)
+
+    let result = template.path.withCString { src in
+      destination.path.withCString { dst in
+        clonefile(src, dst, 0)
+      }
+    }
+    if result != 0 {
+      let err = errno
+      throw NSError(
+        domain: NSPOSIXErrorDomain, code: Int(err),
+        userInfo: [
+          NSLocalizedDescriptionKey:
+            "clonefile failed: \(String(cString: strerror(err)))"
+        ])
+    }
+  }
+
+  /// Persist a freshly unpacked rootfs as a reusable template. Best-effort:
+  /// any failure is dropped silently (the next session will simply unpack again).
+  private func saveRootfsTemplate(from rootfs: URL, to template: URL) {
+    try? cloneRootfs(template: rootfs, container: template)
   }
 
   // MARK: - Unpack progress
