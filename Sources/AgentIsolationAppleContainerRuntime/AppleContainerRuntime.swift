@@ -2,6 +2,7 @@
   import AgentIsolation
   import Containerization
   import ContainerizationArchive
+  import ContainerizationExtras
   import ContainerizationOCI
   import ContainerizationOS
   import Foundation
@@ -57,17 +58,38 @@
     }
 
     public func pullImage(ref: String) async throws -> AppleContainerImage? {
+      try await pullImage(ref: ref, progress: nil)
+    }
+
+    /// Pull an image with optional progress callback.
+    /// `progress` receives batched events (per-blob granularity, not byte-level) — see
+    /// `Containerization.ProgressHandler`. Use this overload when the host wants to
+    /// display download progress to a user.
+    public func pullImage(
+      ref: String,
+      progress: ProgressHandler?
+    ) async throws -> AppleContainerImage? {
       guard let store = imageStore else {
         throw AppleContainerRuntimeError.notPrepared
       }
       let resolvedRef = Self.normalizedDockerHubRef(ref)
       do {
-        let image = try await store.pull(reference: resolvedRef, platform: .current)
+        let image = try await store.pull(
+          reference: resolvedRef,
+          platform: .current,
+          progress: progress
+        )
         return AppleContainerImage(ref: ref, digest: image.digest)
       } catch {
         // Pull failure — image may not exist or network error
         return nil
       }
+    }
+
+    /// Direct access to the underlying ImageStore for management UIs (list / delete /
+    /// inspect). Returns nil if `prepare()` hasn't been called yet.
+    public func imageStoreRef() -> ImageStore? {
+      imageStore
     }
 
     public func inspectImage(ref: String) async throws -> AppleContainerImage? {
