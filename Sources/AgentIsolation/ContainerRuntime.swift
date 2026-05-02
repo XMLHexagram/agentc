@@ -52,6 +52,16 @@ public protocol ContainerRuntime: Sendable {
     configuration: ContainerConfiguration
   ) async throws -> Container
 
+  /// Run a container with stage progress callbacks. Runtimes that implement this
+  /// emit ``AgentStartStage`` events at major boundaries (creatingContainer,
+  /// bootingVM, startingAgent). The default implementation forwards to the
+  /// non-progress overload — runtimes opt in by overriding this method.
+  func runContainer(
+    imageRef: String,
+    configuration: ContainerConfiguration,
+    progress: AgentStartProgressHandler?
+  ) async throws -> Container
+
   /// Remove a container.
   func removeContainer(_ container: Container) async throws
 
@@ -64,6 +74,15 @@ public protocol ContainerRuntime: Sendable {
 
 extension ContainerRuntime {
   public func shutdown() async throws {}
+
+  /// Default progress-aware runContainer forwards to the no-progress version.
+  public func runContainer(
+    imageRef: String,
+    configuration: ContainerConfiguration,
+    progress: AgentStartProgressHandler?
+  ) async throws -> Container {
+    try await runContainer(imageRef: imageRef, configuration: configuration)
+  }
 }
 
 public struct ContainerRuntimeConfiguration: Sendable {

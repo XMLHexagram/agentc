@@ -127,6 +127,21 @@
       imageRef: String,
       configuration: ContainerConfiguration
     ) async throws -> AppleContainerContainer {
+      try await runContainer(
+        imageRef: imageRef,
+        configuration: configuration,
+        progress: nil
+      )
+    }
+
+    /// Stage-instrumented runContainer. Emits ``AgentStartStage`` events at the
+    /// boundaries between manager.create / container.create / container.start so
+    /// the host can render real progress instead of time-based heuristics.
+    public func runContainer(
+      imageRef: String,
+      configuration: ContainerConfiguration,
+      progress: AgentStartProgressHandler?
+    ) async throws -> AppleContainerContainer {
       guard var manager else {
         throw AppleContainerRuntimeError.notPrepared
       }
@@ -145,6 +160,7 @@
 
       let resolvedRef = Self.normalizedDockerHubRef(imageRef)
 
+      await progress?(.creatingContainer)
       let container = try await manager.create(
         containerID,
         reference: resolvedRef,
@@ -202,7 +218,9 @@
         }
       }
 
+      await progress?(.bootingVM)
       try await container.create()
+      await progress?(.startingAgent)
       try await container.start()
 
       if let t = terminal {

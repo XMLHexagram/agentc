@@ -92,9 +92,12 @@ public final class AgentSession<Runtime: ContainerRuntime>: Sendable {
   ///     bootstrap executes this instead of the last configuration's entrypoint
   ///     (e.g. `["/bin/bash"]` for an interactive shell).
   ///   - timeout: Optional timeout (seconds) forwarded to ``wait()``.
+  ///   - progress: Optional callback invoked once per ``AgentStartStage`` transition.
+  ///     Hosts can use it to update spinner / progress UI without time-based heuristics.
   public func start(
     entrypoint entrypointOverride: [String]? = nil,
-    timeout: Int64? = nil
+    timeout: Int64? = nil,
+    progress: AgentStartProgressHandler? = nil
   ) async throws {
     try state.withLock { state in
       guard !state.hasStarted else { throw AgentSessionError.alreadyStarted }
@@ -109,6 +112,7 @@ public final class AgentSession<Runtime: ContainerRuntime>: Sendable {
       stdinContinuation.finish()
     }
 
+    await progress?(.preparingMounts)
     try await runtime.prepare()
 
     let canonicalWorkspace = AgentIsolationPathUtils.resolveSymlinksWithPlatformConsiderations(
@@ -268,12 +272,14 @@ public final class AgentSession<Runtime: ContainerRuntime>: Sendable {
     do {
       let container = try await runtime.runContainer(
         imageRef: config.image,
-        configuration: containerConfig
+        configuration: containerConfig,
+        progress: progress
       )
       state.withLock { state in
         state.container = container
         state.tempDirs = tempDirs
       }
+      await progress?(.ready)
     } catch {
       // Container never came up — purge temp dirs eagerly and finish streams.
       for dir in tempDirs {
