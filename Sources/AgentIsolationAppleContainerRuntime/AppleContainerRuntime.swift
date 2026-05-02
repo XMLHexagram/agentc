@@ -161,10 +161,19 @@
       let resolvedRef = Self.normalizedDockerHubRef(imageRef)
 
       await progress?(.creatingContainer)
+
+      // Translate Containerization's per-event ProgressHandler stream into our
+      // AgentStartStage.unpackingRootfs aggregate (cumulative bytes + files).
+      let unpackTracker = UnpackProgressTracker(forward: progress)
+      let unpackProgress: ProgressHandler = { events in
+        await unpackTracker.handle(events)
+      }
+
       let container = try await manager.create(
         containerID,
         reference: resolvedRef,
-        rootfsSizeInBytes: UInt64(8).gib()
+        rootfsSizeInBytes: UInt64(8).gib(),
+        progress: unpackProgress
       ) { containerConfig in
         containerConfig.cpus = configuration.cpuCount
         containerConfig.memoryInBytes = UInt64(configuration.memoryLimitMiB).mib()
@@ -405,6 +414,39 @@
       case .notPrepared:
         return "Container runtime has not been prepared. Call prepare() first."
       }
+    }
+  }
+
+  // MARK: - Unpack progress
+
+  /// Aggregates per-event Containerization unpack progress (additive byte / item
+  /// counters) into cumulative totals, then forwards each update as an
+  /// ``AgentStartStage.unpackingRootfs`` event for hosts.
+  private actor UnpackProgressTracker {
+    private let forward: AgentStartProgressHandler?
+    private var processedSize: Int64 = 0
+    private var totalSize: Int64 = 0
+    private var processedItems: Int = 0
+    private var totalItems: Int = 0
+
+    init(forward: AgentStartProgressHandler?) { self.forward = forward }
+
+    func handle(_ events: [ProgressEvent]) async {
+      for event in events {
+        switch event {
+        case .addItems(let n): processedItems += n
+        case .addTotalItems(let n): totalItems += n
+        case .addSize(let n): processedSize += n
+        case .addTotalSize(let n): totalSize += n
+        }
+      }
+      await forward?(
+        .unpackingRootfs(
+          processedSize: processedSize,
+          totalSize: totalSize,
+          processedItems: processedItems,
+          totalItems: totalItems
+        ))
     }
   }
 #endif
